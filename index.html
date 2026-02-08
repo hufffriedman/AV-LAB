@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AV LAB</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+      font-family: system-ui;
+    }
+
+    #start {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 16px 28px;
+      background: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+<button id="start">Click to Start</button>
+
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100);
+camera.position.z = 4;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+
+// ---------- Prism / Crystal ----------
+const geometry = new THREE.ConeGeometry(1, 2.5, 6);
+const material = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  roughness: 0.05,
+  transmission: 1,
+  thickness: 1.5,
+  clearcoat: 1,
+  emissive: 0x88ccff,
+  emissiveIntensity: 0.2
+});
+
+const prism = new THREE.Mesh(geometry, material);
+scene.add(prism);
+
+const light = new THREE.PointLight(0xffffff, 5);
+light.position.set(5,5,5);
+scene.add(light);
+
+
+// ---------- Audio ----------
+let analyser, dataArray;
+
+async function setupAudio() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaStreamSource(stream);
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+
+  source.connect(analyser);
+
+  const bufferLength = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufferLength);
+}
+
+
+// ---------- Animation ----------
+function animate() {
+  requestAnimationFrame(animate);
+
+  let bass = 0;
+  let mids = 0;
+  let highs = 0;
+
+  if (analyser) {
+    analyser.getByteFrequencyData(dataArray);
+
+    bass = avg(0, 10);
+    mids = avg(10, 40);
+    highs = avg(40, 80);
+  }
+
+  // rotation (build)
+  prism.rotation.y += 0.01 + mids * 0.0005;
+
+  // bass stretch
+  prism.scale.y = 1 + bass * 0.01;
+
+  // vocal/high glow
+  material.emissiveIntensity = 0.2 + highs * 0.01;
+
+  renderer.render(scene, camera);
+}
+
+function avg(start, end) {
+  let sum = 0;
+  for (let i=start; i<end; i++) sum += dataArray[i];
+  return sum/(end-start);
+}
+
+animate();
+
+
+// ---------- Start button ----------
+document.getElementById("start").onclick = async () => {
+  await setupAudio();
+  document.getElementById("start").remove();
+};
+</script>
+</body>
+</html>
